@@ -1,0 +1,555 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@700;800;900&family=Playfair+Display:ital,wght@1,400;1,700&display=swap');
+
+:root {
+  /* Modern Electric Palette */
+  --bg-main: #ffffff;
+  --bg-alt: #f8faff;
+  --primary: #111111;         /* Premium Matte Black */
+  --primary-glow: rgba(17, 17, 17, 0.1);
+  --gold: #FFD700;          /* Gold for verified */
+  --gold-glow: rgba(255, 215, 0, 0.2);
+  --black: #000000;
+  --dark-gray: #1a1a1a;
+  --light-gray: #f3f4f6;
+  --glass: rgba(255, 255, 255, 0.75);
+  --glass-dark: rgba(0, 0, 0, 0.6);
+  
+  /* UI Tokens */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 32px;
+  --radius-full: 9999px;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px var(--primary-glow), 0 4px 6px -2px var(--primary-glow);
+  
+  --font-text: 'Inter', sans-serif;
+  --font-heading: 'Montserrat', sans-serif;
+  --font-accent: 'Playfair Display', serif;
+
+  /* Missing Variables */
+  --radius-xl: 24px;
+  --terracotta: #9F402D;
+  --terracotta-light: #C05641;
+}
+
+/* Global Reset & Base */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  overflow-x: hidden; /* Prevent horizontal scroll on html, not body — avoids cancelling scrollbar-gutter */
+}
+
+body {
+  background-color: var(--bg-alt);
+  color: var(--black);
+  font-family: var(--font-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  /* Evitar bounce elastico nativo web en las app de Android */
+  overscroll-behavior-y: none;
+  scrollbar-gutter: stable; /* Reserva espacio para el scrollbar — evita saltos de layout */
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+
+/* Protege el contenido del Notch y los bordes */
+.app-container, .main-layout, main {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Typography */
+h1, h2, h3, h4, .heading-system {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+  font-weight: 800;
+}
+
+.text-accent {
+  font-family: var(--font-accent);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Layout Utilities */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.header {
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.logo-container img {
+  height: 32px; /* Smaller logo */
+  width: auto;
+}
+
+.nav-horizontal {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+  margin-left: auto;
+}
+
+.nav-link {
+  color: var(--black);
+  text-decoration: none;
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+  transition: all 0.3s ease;
+  position: relative;
+  cursor: pointer;
+}
+
+.nav-link:hover, .nav-link.active {
+  opacity: 1;
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--primary);
+}
+
+.desktop-nav {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0 1.5rem;
+  }
+  .desktop-nav {
+    display: none !important;
+  }
+  .hide-mobile {
+    display: none !important;
+  }
+  .show-mobile {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+  .category-scroll {
+    display: flex !important;
+    overflow-x: auto !important;
+    white-space: nowrap;
+    padding: 10px 15px !important;
+    justify-content: flex-start !important;
+    gap: 20px !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  .category-scroll::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.show-mobile {
+  display: none;
+}
+
+/* Bento Grid */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* Two columns as requested */
+  grid-auto-rows: auto;
+  gap: 2rem;
+  padding: 2rem 0;
+}
+
+@media (max-width: 1024px) {
+  .bento-grid {
+    grid-template-columns: 1fr; /* Single column on tablet/mobile for flow */
+  }
+}
+
+@media (max-width: 640px) {
+  .bento-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+  }
+}
+
+/* Bento Items */
+.bento-item {
+  background: white;
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.4s ease;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.bento-item:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: var(--shadow-md);
+}
+
+.bento-large {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.bento-tall {
+  grid-row: span 2;
+}
+
+.bento-wide {
+  grid-column: span 2;
+}
+
+/* Glassmorphism */
+.glass {
+  background: rgba(255, 250, 247, 0.85);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(159, 64, 45, 0.08);
+}
+
+.glass-dark {
+  background: rgba(30, 32, 86, 0.4);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Mediterranean Buttons */
+.btn-primary, .btn-terracotta {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 0.8rem 1.6rem;
+  font-family: var(--font-heading);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+  box-shadow: 0 4px 15px rgba(159, 64, 45, 0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-terracotta:hover {
+  background: var(--terracotta-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(159, 64, 45, 0.3);
+}
+
+.btn-terracotta:active {
+  transform: scale(0.98);
+}
+
+/* Thread Flow lines */
+.thread-line {
+  position: absolute;
+  left: 2rem;
+  top: 4rem;
+  bottom: 2rem;
+  width: 2px;
+  background: linear-gradient(180deg, var(--primary) 0%, transparent 100%);
+  opacity: 0.2;
+}
+
+/* Animation Utilities */
+.fade-in {
+  animation: fadeIn 0.8s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive & Sidebar */
+.mobile-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 280px;
+  background: white;
+  z-index: 1000;
+  padding: 30px;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+/* Ranking Chart */
+.rank-chart-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  background: var(--bg-alt);
+  border-radius: 20px;
+  margin-top: 20px;
+  border: 1px solid var(--primary-glow);
+}
+
+.chart-svg {
+  transform: rotate(-90deg);
+}
+
+.chart-circle-bg {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.05);
+  stroke-width: 8;
+}
+
+.chart-circle-progress {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.5s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.rank-badge {
+  background: var(--primary);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  margin-top: -15px;
+  z-index: 1;
+}
+
+/* ── MODAL OVERLAY — Definitivo anti-temblor ────────────────────────────
+   La causa del temblor en Chromium:
+   · Animar opacity en el mismo elemento que tiene backdrop-filter fuerza
+     al compositor GPU a recalcular el blur en cada frame.
+   SOLUCIÓN: El overlay aparece INSTANTÁNEO (sin animación de opacity).
+   Solo el card interior usa Framer Motion. Así nunca se crea/destruye
+   una capa de compositing al mismo tiempo que existe el backdrop-filter.
+   ──────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  isolation: isolate;
+  /* NO will-change: opacity aquí — causaba compositing layer que temblaba */
+}
+
+.modal-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* backdrop-filter SOLO aquí — estático, nunca animado */
+  -webkit-backdrop-filter: blur(7px) saturate(150%);
+  backdrop-filter: blur(7px) saturate(150%);
+  transform: translateZ(0);   /* Capa GPU propia y estable */
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Hijos por encima del ::before */
+.modal-overlay > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Variante: alineado arriba (búsqueda) */
+.modal-overlay-top {
+  align-items: flex-start;
+  padding-top: 80px;
+}
+
+/* ── CARRUSEL DE IMÁGENES ─────────────────────────────────────────── */
+.media-carousel {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  background: #000;
+  /* Contain repaints inside carousel */
+  contain: paint;
+}
+
+.media-carousel.compact {
+  border-radius: 14px;
+  margin-bottom: 8px;
+}
+
+.media-carousel img {
+  width: 100%;
+  display: block;
+  object-fit: cover;
+  transition: opacity 0.18s ease;
+}
+
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.52);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+  transition: background 0.15s;
+  z-index: 2;
+  line-height: 1;
+}
+.carousel-arrow:hover { background: rgba(0,0,0,0.75); }
+.carousel-arrow.left  { left: 8px; }
+.carousel-arrow.right { right: 8px; }
+
+.carousel-dots {
+  position: absolute;
+  bottom: 9px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  z-index: 2;
+}
+
+.carousel-dot {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.55);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+.carousel-dot.active {
+  width: 14px !important;
+  background: white;
+}
+
+.carousel-counter {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  background: rgba(0,0,0,0.52);
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+  z-index: 2;
+}
+
+/* ── MULTI-FOTO GRID (crear post) ─────────────────────────────────── */
+.photo-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.photo-thumb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+
+.photo-thumb-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: rgba(0,0,0,0.65);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 19px;
+  height: 19px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  z-index: 3;
+}
+
+.photo-add-btn {
+  width: 72px;
+  height: 72px;
+  border: 1.5px dashed rgba(0,0,0,0.18);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 10px;
+  opacity: 0.5;
+  flex-shrink: 0;
+  background: none;
+  transition: opacity 0.15s;
+}
+.photo-add-btn:hover { opacity: 0.8; }
+
+/* Animations */
+@keyframes dash {
+  from { stroke-dashoffset: 283; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
