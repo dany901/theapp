@@ -5,6 +5,12 @@ import InteractionBar from './InteractionBar';
 import { renderTextWithLinks } from '../../utils';
 import VerifiedBadge from '../social/VerifiedBadge';
 
+const isVideo = (url) => {
+  if (!url) return false;
+  const lower = url.toLowerCase().split('?')[0];
+  return lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.mov') || lower.endsWith('.ogg') || lower.endsWith('.mkv');
+};
+
 const BentoCard = ({ item, onLike, onOpenPost }) => {
   const isLiked = item.user_has_liked || false;
   
@@ -57,7 +63,19 @@ const BentoCard = ({ item, onLike, onOpenPost }) => {
         
         {item.media_url && (
           <div style={{ width: '100%', maxHeight: '180px', borderRadius: '14px', overflow: 'hidden', marginBottom: '8px' }}>
-            <img src={item.media_url} style={{ width: '100%', height: '180px', objectFit: 'cover' }} alt="media" />
+            {isVideo(item.media_url) ? (
+              <video
+                src={item.media_url}
+                style={{ width: '100%', height: '180px', objectFit: 'cover' }}
+                muted
+                playsInline
+                preload="metadata"
+                onMouseEnter={e => e.target.play()}
+                onMouseLeave={e => { e.target.pause(); e.target.currentTime = 0; }}
+              />
+            ) : (
+              <img src={item.media_url} style={{ width: '100%', height: '180px', objectFit: 'cover' }} alt="media" />
+            )}
           </div>
         )}
       </div>

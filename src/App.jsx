@@ -100,6 +100,12 @@ const parseMediaUrls = (mediaUrl) => {
   } catch { return [mediaUrl]; }
 };
 
+const isVideoUrl = (url) => {
+  if (!url) return false;
+  const lower = url.toLowerCase().split('?')[0];
+  return lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.mov') || lower.endsWith('.ogg') || lower.endsWith('.mkv');
+};
+
 const MediaCarousel = ({ mediaUrl, compact = false }) => {
   const rawUrls = React.useMemo(() => parseMediaUrls(mediaUrl), [mediaUrl]);
   const { resolved: urls, loading } = useSignedUrls(rawUrls);
@@ -115,12 +121,31 @@ const MediaCarousel = ({ mediaUrl, compact = false }) => {
   );
   if (!urls.length) return null;
 
+  const currentUrl = urls[cur];
+  const currentIsVideo = isVideoUrl(rawUrls[cur] || '');
+
   return (
     <div className={`media-carousel${compact ? ' compact' : ''}`}>
-      <img src={urls[cur]} alt={`foto ${cur + 1}`} style={{ height: h }}
-        draggable="false"
-        onContextMenu={e => e.preventDefault()}
-      />
+      {currentIsVideo ? (
+        <video
+          src={currentUrl}
+          style={{ height: h, width: '100%', objectFit: 'cover', display: 'block', background: '#000' }}
+          controls={!compact}
+          muted={compact}
+          playsInline
+          preload="metadata"
+          onContextMenu={e => e.preventDefault()}
+          {...(compact ? {
+            onMouseEnter: e => e.target.play(),
+            onMouseLeave: e => { e.target.pause(); e.target.currentTime = 0; }
+          } : {})}
+        />
+      ) : (
+        <img src={currentUrl} alt={`foto ${cur + 1}`} style={{ height: h }}
+          draggable="false"
+          onContextMenu={e => e.preventDefault()}
+        />
+      )}
       {urls.length > 1 && (
         <>
           {cur > 0 && (
@@ -638,6 +663,8 @@ function App() {
   }, [showCreate, showProfile, showPolicies, showContact, showSearch, selectedPost, showAuth]);
 
 
+  const isVideoFile = (file) => file.type.startsWith('video/');
+
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
@@ -645,11 +672,13 @@ function App() {
     if (slots <= 0) return;
     setCreateLoading(true);
     const toAdd = files.slice(0, slots);
-    const compressed = await Promise.all(toAdd.map(f => compressImage(f)));
-    const newItems = compressed.map(f => ({ file: f, preview: URL.createObjectURL(f) }));
+    const processed = await Promise.all(toAdd.map(f =>
+      isVideoFile(f) ? Promise.resolve(f) : compressImage(f) // no comprimir videos
+    ));
+    const newItems = processed.map(f => ({ file: f, preview: URL.createObjectURL(f), isVideo: isVideoFile(f) }));
     setSelectedFiles(prev => [...prev, ...newItems]);
     setCreateLoading(false);
-    e.target.value = ''; // reset para poder añadir el mismo archivo
+    e.target.value = '';
   };
 
   const handleAvatarChange = async (e) => {
@@ -688,11 +717,14 @@ function App() {
     if (selectedFiles.length > 0) {
       const uploadedPaths = [];
       for (const { file } of selectedFiles) {
-        // Nombre único para el archivo
-        const fn = `${Date.now()}_${Math.random().toString(36).slice(2)}_img.jpg`;
-        const { data, error: upErr } = await supabase.storage.from('media').upload(fn, file);
+        // Detectar extensión según tipo real del archivo
+        const isVid = file.type.startsWith('video/');
+        const ext = isVid
+          ? (file.name.split('.').pop() || 'mp4')
+          : 'jpg';
+        const fn = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const { data, error: upErr } = await supabase.storage.from('media').upload(fn, file, { contentType: file.type });
         if (upErr) { alert('ERROR ALMACÉN: ' + upErr.message); setCreateLoading(false); return; }
-        // Guardamos SOLO el PATH (no la URL pública) → compatible con Signed URLs
         if (data) uploadedPaths.push(fn);
       }
       mediaUrl = uploadedPaths.length === 1 ? uploadedPaths[0] : JSON.stringify(uploadedPaths);
@@ -891,7 +923,11 @@ function App() {
                   <div className="photo-grid">
                     {selectedFiles.map((item, i) => (
                       <div key={i} className="photo-thumb">
-                        <img src={item.preview} alt="" />
+                        {item.isVideo ? (
+                          <video src={item.preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline preload="metadata" />
+                        ) : (
+                          <img src={item.preview} alt="" />
+                        )}
                         <button type="button" className="photo-thumb-remove"
                           onClick={() => setSelectedFiles(prev => prev.filter((_, j) => j !== i))}>x</button>
                       </div>
@@ -900,14 +936,14 @@ function App() {
                       <label className="photo-add-btn">
                         <ImageIcon size={18} />
                         <span>Añadir</span>
-                        <input type="file" accept="image/*" multiple onChange={handleFileChange} style={{ display: 'none' }} />
+                        <input type="file" accept="image/*,video/mp4,video/mov,video/webm,video/quicktime" multiple onChange={handleFileChange} style={{ display: 'none' }} />
                       </label>
                     )}
                   </div>
                 ) : (
                   <label style={{ padding: '14px', border: '1px dashed rgba(0,0,0,0.12)', borderRadius: '12px', cursor: 'pointer', textAlign: 'center', fontSize: '11px', opacity: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                    <ImageIcon size={16} /> Añadir fotos (máx. 5)
-                    <input type="file" accept="image/*" multiple onChange={handleFileChange} style={{ display: 'none' }} />
+                    <ImageIcon size={16} /> Añadir fotos o vídeos (máx. 5)
+                    <input type="file" accept="image/*,video/mp4,video/mov,video/webm,video/quicktime" multiple onChange={handleFileChange} style={{ display: 'none' }} />
                   </label>
                 )}
 

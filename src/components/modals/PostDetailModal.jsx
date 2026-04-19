@@ -7,6 +7,12 @@ import { useAuth } from '../../context/AuthContext';
 import FollowButton from '../social/FollowButton';
 import VerifiedBadge from '../social/VerifiedBadge';
 
+const isVideo = (url) => {
+  if (!url) return false;
+  const lower = url.toLowerCase().split('?')[0];
+  return lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.mov') || lower.endsWith('.ogg') || lower.endsWith('.mkv');
+};
+
 
 const PostDetailModal = ({ post, onClose, onLike, onCommentSubmit, onNext, onPrev, onDelete }) => {
   const { user, profile } = useAuth();
@@ -203,7 +209,17 @@ const PostDetailModal = ({ post, onClose, onLike, onCommentSubmit, onNext, onPre
                 <p style={{ fontSize: '15px', lineHeight: '1.65', margin: '0 0 16px 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderTextWithLinks(post.content)}</p>
                 {post.media_url && (
                   <div style={{ borderRadius: '18px', overflow: 'hidden', marginBottom: '16px' }}>
-                    <img src={post.media_url} style={{ width: '100%', objectFit: 'cover', maxHeight: '420px', display: 'block' }} alt="media" />
+                    {isVideo(post.media_url) ? (
+                      <video
+                        src={post.media_url}
+                        style={{ width: '100%', maxHeight: '420px', display: 'block', background: '#000' }}
+                        controls
+                        playsInline
+                        preload="metadata"
+                      />
+                    ) : (
+                      <img src={post.media_url} style={{ width: '100%', objectFit: 'cover', maxHeight: '420px', display: 'block' }} alt="media" />
+                    )}
                   </div>
                 )}
               </>
