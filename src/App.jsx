@@ -694,10 +694,10 @@ function App() {
     let avatarUrl = profile?.avatar_url || null;
     if (avatarFile) {
       const fn = `avatars/${user.id}_${Date.now()}.jpg`;
-      const { data, error: uErr } = await supabase.storage.from('media').upload(fn, avatarFile, { upsert: true });
+      const { error: uErr } = await supabase.storage.from('media').upload(fn, avatarFile, { upsert: true });
       if (uErr) { setProfileMsg('\u274c ' + uErr.message); setProfileSaving(false); return; }
-      // Guardamos el PATH relativo (no la URL pública) para que funcione con Signed URLs
-      if (data) avatarUrl = fn;
+      const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(fn);
+      avatarUrl = publicUrl;
     }
     const { error } = await supabase.from('profiles').update({ full_name: profileForm.full_name, username: profileForm.username, theapp_id: profileForm.theapp_id, avatar_url: avatarUrl }).eq('id', user.id);
     if (error) setProfileMsg('\u274c ' + error.message);
@@ -715,19 +715,18 @@ function App() {
     const fullContent = titleVal ? `${titleVal}\n---\n${bodyVal}` : bodyVal;
     let mediaUrl = '';
     if (selectedFiles.length > 0) {
-      const uploadedPaths = [];
+      const uploadedUrls = [];
       for (const { file } of selectedFiles) {
-        // Detectar extensión según tipo real del archivo
         const isVid = file.type.startsWith('video/');
-        const ext = isVid
-          ? (file.name.split('.').pop() || 'mp4')
-          : 'jpg';
+        const ext = isVid ? (file.name.split('.').pop() || 'mp4') : 'jpg';
         const fn = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-        const { data, error: upErr } = await supabase.storage.from('media').upload(fn, file, { contentType: file.type });
-        if (upErr) { alert('ERROR ALMACÉN: ' + upErr.message); setCreateLoading(false); return; }
-        if (data) uploadedPaths.push(fn);
+        const { error: upErr } = await supabase.storage.from('media').upload(fn, file, { contentType: file.type });
+        if (upErr) { alert('ERROR AL SUBIR: ' + upErr.message); setCreateLoading(false); return; }
+        // Guardar URL pública directamente — sin signed URLs, sin complicaciones
+        const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(fn);
+        uploadedUrls.push(publicUrl);
       }
-      mediaUrl = uploadedPaths.length === 1 ? uploadedPaths[0] : JSON.stringify(uploadedPaths);
+      mediaUrl = uploadedUrls.length === 1 ? uploadedUrls[0] : JSON.stringify(uploadedUrls);
     }
     const { error } = await supabase.from('posts').insert({
       author_id: user.id, content: fullContent, media_url: mediaUrl,

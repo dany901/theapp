@@ -94,13 +94,14 @@ export const useSignedUrls = (rawUrls = []) => {
 
     Promise.all(
       rawUrls.map(async (raw) => {
-        // URLs externas (dicebear, https que no son de Supabase Media) → sin firmar
-        if (raw && raw.startsWith('http') && !raw.includes('supabase.co')) {
+        // Si ya es una URL completa (http), usarla directamente sin firmar
+        if (raw && raw.startsWith('http')) {
           return raw;
         }
+        // Path relativo → intentar signed URL, fallback a URL pública
         const path   = extractStoragePath(raw);
         const signed = path ? await resolveSignedUrl(path) : null;
-        return signed ?? raw; // fallback a la URL original si falla
+        return signed ?? raw;
       })
     ).then((urls) => {
       if (!cancelled) {
