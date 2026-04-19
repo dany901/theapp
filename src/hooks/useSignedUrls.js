@@ -15,6 +15,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
+// URL base del bucket público (para fallback cuando signed URL falla)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const PUBLIC_BASE  = `${SUPABASE_URL}/storage/v1/object/public/media/`;
+
 // ── Cache global (nivel módulo — persiste entre renders) ──────────────────
 const urlCache = new Map(); // key: storagePath → { signedUrl, expiresAt }
 
@@ -51,10 +55,10 @@ export const resolveSignedUrl = async (storagePath) => {
     .createSignedUrl(storagePath, EXPIRES_IN);
 
   if (error || !data?.signedUrl) {
-    // Si falla (bucket aún público o path inválido), devolver null
-    // → el componente hará fallback a la URL original
     console.warn('[SignedURL] Error en path:', storagePath, error?.message);
-    return null;
+    // Fallback: intentar con URL pública (funciona si el bucket es público)
+    const publicUrl = PUBLIC_BASE + storagePath;
+    return publicUrl;
   }
 
   urlCache.set(storagePath, {
