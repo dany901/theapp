@@ -127,19 +127,25 @@ const MediaCarousel = ({ mediaUrl, compact = false }) => {
   return (
     <div className={`media-carousel${compact ? ' compact' : ''}`}>
       {currentIsVideo ? (
-        <video
-          src={currentUrl}
-          style={{ height: h, width: '100%', objectFit: 'cover', display: 'block', background: '#000' }}
-          controls={!compact}
-          muted={compact}
-          playsInline
-          preload="metadata"
-          onContextMenu={e => e.preventDefault()}
-          {...(compact ? {
-            onMouseEnter: e => e.target.play(),
-            onMouseLeave: e => { e.target.pause(); e.target.currentTime = 0; }
-          } : {})}
-        />
+        compact ? (
+          // Feed compacto: muted + play al hover
+          <video
+            src={currentUrl}
+            style={{ height: h, width: '100%', objectFit: 'cover', display: 'block', background: '#000' }}
+            muted playsInline preload="metadata"
+            onContextMenu={e => e.preventDefault()}
+            onMouseEnter={e => e.target.play()}
+            onMouseLeave={e => { e.target.pause(); e.target.currentTime = 0; }}
+          />
+        ) : (
+          // Vista completa: CON sonido y controles (sin atributo muted)
+          <video
+            src={currentUrl}
+            style={{ height: h, width: '100%', objectFit: 'cover', display: 'block', background: '#000' }}
+            controls playsInline preload="metadata"
+            onContextMenu={e => e.preventDefault()}
+          />
+        )
       ) : (
         <img src={currentUrl} alt={`foto ${cur + 1}`} style={{ height: h }}
           draggable="false"
