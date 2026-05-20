@@ -843,6 +843,34 @@ function App() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
+  // Real-time: nuevos posts aparecen al instante (INSERT/DELETE en posts)
+  useEffect(() => {
+    const channel = supabase.channel('posts-realtime')
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'posts'
+      }, async (payload) => {
+        // Solo añadir si encaja en la categoría activa
+        const cat = activeCategoryRef.current;
+        if (cat !== 'All' && payload.new.category !== cat) return;
+        // Fetch completo del post con perfil del autor
+        const { data } = await supabase.from('posts')
+          .select('*, profiles!inner(theapp_id, avatar_url, full_name, username), likes(user_id), comments(id)')
+          .eq('id', payload.new.id).single();
+        if (!data) return;
+        const mapped = { ...data, likes_count: data.likes?.length || 0, comments_count: data.comments?.length || 0, user_has_liked: false };
+        // Solo añadir si no existe ya (evitar duplicados)
+        setFeed(prev => prev.some(p => p.id === mapped.id) ? prev : [mapped, ...prev]);
+      })
+      .on('postgres_changes', {
+        event: 'DELETE', schema: 'public', table: 'posts'
+      }, (payload) => {
+        setFeed(prev => prev.filter(p => p.id !== payload.old.id));
+        setSelectedPost(prev => prev?.id === payload.old.id ? null : prev);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []); // Sin deps — canal global, estable
+
 
   const isVideoFile = (file) => file.type.startsWith('video/');
 
