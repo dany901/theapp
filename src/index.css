@@ -553,3 +553,8 @@ h1, h2, h3, h4, .heading-system {
   to { transform: rotate(360deg); }
 }
 
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Heart, MessageCircle, LogOut, Send, Trash2,
   Image as ImageIcon, X, AlertCircle, User, Camera, Check, ArrowLeft,
-  ChevronUp, ChevronDown, Search, Menu, Shield, Mail
+  ChevronUp, ChevronDown, Search, Menu, Shield, Mail, Bell
 } from 'lucide-react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { PushNotifications } from '@capacitor/push-notifications';
@@ -19,6 +19,8 @@ const CATEGORY_INFO = {
   Explore:   { emoji: '🧭', title: 'Explore',   desc: 'Descubre lugares, aventuras y experiencias únicas. Comparte tus viajes y momentos especiales.' },
   Community: { emoji: '💬', title: 'Community', desc: 'Conversaciones, noticias y debates de nuestra comunidad.' },
 };
+
+const PAGE_SIZE = 20; // Posts por página (infinite scroll)
 
 /* Parses "title\n---\nbody" format */
 const parsePost = (content) => {
@@ -547,6 +549,41 @@ const SearchModal = ({ onClose, onOpenPost }) => {
   );
 };
 
+// ─── NOTIFICATIONS PANEL ──────────────────────────────────────────────
+const NotificationsPanel = ({ notifications, onClose, onOpenPost, onMarkRead }) => (
+  <div style={{ position: 'absolute', top: '38px', right: 0, background: 'white', borderRadius: '20px', boxShadow: '0 10px 40px rgba(0,0,0,0.18)', width: '320px', maxHeight: '420px', overflow: 'hidden', display: 'flex', flexDirection: 'column', zIndex: 200, border: '1px solid rgba(0,0,0,0.06)' }}>
+    <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <span style={{ fontWeight: '800', fontSize: '13px' }}>Notificaciones</span>
+      {notifications.some(n => !n.read) && (
+        <button onClick={onMarkRead} style={{ fontSize: '10px', color: 'var(--terracotta)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '600' }}>Marcar todo leído</button>
+      )}
+    </div>
+    <div style={{ overflowY: 'auto', flex: 1 }}>
+      {notifications.length === 0 ? (
+        <div style={{ padding: '32px 16px', textAlign: 'center', opacity: 0.35, fontSize: '13px' }}>
+          <Bell size={22} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.5 }} />
+          Sin notificaciones aún
+        </div>
+      ) : notifications.map(n => (
+        <div key={n.id}
+          onClick={() => { if (n.post_id) { onOpenPost(n.post_id); onClose(); } }}
+          style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', cursor: n.post_id ? 'pointer' : 'default', background: n.read ? 'transparent' : 'rgba(159,64,45,0.05)', borderBottom: '1px solid rgba(0,0,0,0.04)', transition: 'background 0.15s' }}
+          onMouseEnter={e => { if (n.post_id) e.currentTarget.style.background = 'rgba(0,0,0,0.03)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(159,64,45,0.05)'; }}>
+          <img src={n.actor?.avatar_url || `https://api.dicebear.com/7.x/thumbs/svg?seed=${n.actor_id}`}
+            style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} alt="" />
+          <div style={{ flex: 1, fontSize: '12px', lineHeight: '1.4' }}>
+            <span style={{ fontWeight: '700' }}>@{n.actor?.username || 'alguien'}</span>
+            {' '}{n.type === 'like' ? '❤️ le gustó tu post' : '💬 comentó tu post'}
+            <div style={{ fontSize: '10px', opacity: 0.38, marginTop: '2px' }}>{timeAgo(n.created_at)}</div>
+          </div>
+          {!n.read && <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--terracotta)', flexShrink: 0 }} />}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 // ─── APP ──────────────────────────────────────────────────────────────
 function App() {
   const [activeCategory, setActiveCategory] = useState('All');
@@ -575,12 +612,32 @@ function App() {
   const [bgTheme, setBgTheme] = useState('light'); // light, gray, dark
   const avatarInputRef = useRef(null);
 
+  // ── Paginación (infinite scroll) ───────────────────────────────────
+  const [page, setPage]             = useState(0);
+  const [hasMore, setHasMore]       = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // ── Notificaciones ─────────────────────────────────────────────────
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // ── Refs para callbacks estables (evitar re-crear IntersectionObserver) ─
+  const sentinelRef       = useRef(null);
+  const userRef           = useRef(null);
+  const pageRef           = useRef(0);
+  const activeCategoryRef = useRef('All');
+  const loadingMoreRef    = useRef(false);
+  const hasMoreRef        = useRef(true);
+  const isFirstCatRender  = useRef(true);
+
   const bgStyles = { light: 'rgba(159,64,45,0.03)', gray: '#e5e7eb', dark: '#1c1c1c' };
   const getHeaderColor = () => bgTheme === 'dark' ? 'rgba(28,28,28,0.85)' : 'rgba(255, 250, 247, 0.85)';
 
-  const filteredFeed   = feed.filter(i => activeCategory === 'All' || i.category === activeCategory);
-  const selectedIndex  = selectedPost ? filteredFeed.findIndex(p => p.id === selectedPost.id) : -1;
-  const handleNavigate = (idx) => { if (idx >= 0 && idx < filteredFeed.length) setSelectedPost(filteredFeed[idx]); };
+  // filteredFeed = feed directamente (el filtro por categoría se aplica en el servidor)
+  const filteredFeed   = feed;
+  const selectedIndex  = selectedPost ? feed.findIndex(p => p.id === selectedPost.id) : -1;
+  const handleNavigate = (idx) => { if (idx >= 0 && idx < feed.length) setSelectedPost(feed[idx]); };
 
   const fetchProfile = useCallback(async (uid) => {
     if (!uid) return;
@@ -588,15 +645,23 @@ function App() {
     if (data) { setProfile(data); setProfileForm({ full_name: data.full_name || '', username: data.username || '', theapp_id: data.theapp_id || '' }); }
   }, []);
 
-  const fetchPosts = useCallback(async (currentUser, silent = false) => {
+  const fetchPosts = useCallback(async (currentUser, silent = false, category) => {
     if (!silent) setLoading(true);
-    const { data, error } = await supabase.from('posts')
+    const cat = category ?? activeCategoryRef.current;
+    let q = supabase.from('posts')
       .select('*, profiles!inner(theapp_id, avatar_url, full_name, username), likes(user_id), comments(id)')
-      .order('created_at', { ascending: false });
-    if (!error) {
+      .order('created_at', { ascending: false })
+      .range(0, PAGE_SIZE - 1);
+    if (cat !== 'All') q = q.eq('category', cat);
+    const { data, error } = await q;
+    if (!error && data) {
       const mapped = data.map(p => ({ ...p, likes_count: p.likes?.length || 0, comments_count: p.comments?.length || 0, user_has_liked: p.likes?.some(l => l.user_id === currentUser?.id) }));
       setFeed(mapped);
-      setSelectedPost(prev => { if (!prev) return null; return mapped.find(p => p.id === prev.id) || prev; });
+      hasMoreRef.current = data.length === PAGE_SIZE;
+      setHasMore(data.length === PAGE_SIZE);
+      pageRef.current = 1;
+      setPage(1);
+      setSelectedPost(prev => prev ? (mapped.find(p => p.id === prev.id) || prev) : null);
     }
     if (!silent) setLoading(false);
   }, []);
@@ -631,14 +696,83 @@ function App() {
     }
   }, []);
 
+  // ── Notificaciones ─────────────────────────────────────────────────
+  const fetchNotifications = useCallback(async (currentUser) => {
+    if (!currentUser) return;
+    const { data } = await supabase.from('notifications')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(40);
+    if (!data) return;
+    // Traer perfiles de los actores en una sola query
+    const actorIds = [...new Set(data.filter(n => n.actor_id).map(n => n.actor_id))];
+    let actorMap = {};
+    if (actorIds.length > 0) {
+      const { data: pdata } = await supabase.from('profiles').select('id, username, avatar_url').in('id', actorIds);
+      if (pdata) pdata.forEach(p => { actorMap[p.id] = p; });
+    }
+    const enriched = data.map(n => ({ ...n, actor: actorMap[n.actor_id] || null }));
+    setNotifications(enriched);
+    setUnreadCount(enriched.filter(n => !n.read).length);
+  }, []);
+
+  const markNotificationsRead = useCallback(async () => {
+    const currentUser = userRef.current;
+    if (!currentUser) return;
+    await supabase.from('notifications').update({ read: true }).eq('user_id', currentUser.id).eq('read', false);
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setUnreadCount(0);
+  }, []);
+
+  const openPostById = useCallback(async (postId) => {
+    const existing = feed.find(p => p.id === postId);
+    if (existing) { setSelectedPost(existing); return; }
+    const { data } = await supabase.from('posts')
+      .select('*, profiles!inner(theapp_id, avatar_url, full_name, username), likes(user_id), comments(id)')
+      .eq('id', postId).single();
+    if (data) setSelectedPost({ ...data, likes_count: data.likes?.length || 0, comments_count: data.comments?.length || 0, user_has_liked: data.likes?.some(l => l.user_id === userRef.current?.id) });
+  }, [feed]);
+
+  // ── Infinite Scroll ────────────────────────────────────────────────
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    const from = pageRef.current * PAGE_SIZE;
+    const to   = from + PAGE_SIZE - 1;
+    const cat  = activeCategoryRef.current;
+    let q = supabase.from('posts')
+      .select('*, profiles!inner(theapp_id, avatar_url, full_name, username), likes(user_id), comments(id)')
+      .order('created_at', { ascending: false })
+      .range(from, to);
+    if (cat !== 'All') q = q.eq('category', cat);
+    const { data } = await q;
+    if (data) {
+      const mapped = data.map(p => ({ ...p, likes_count: p.likes?.length || 0, comments_count: p.comments?.length || 0, user_has_liked: p.likes?.some(l => l.user_id === userRef.current?.id) }));
+      setFeed(prev => [...prev, ...mapped]);
+      hasMoreRef.current = data.length === PAGE_SIZE;
+      setHasMore(data.length === PAGE_SIZE);
+      pageRef.current += 1;
+      setPage(p => p + 1);
+    }
+    loadingMoreRef.current = false;
+    setLoadingMore(false);
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null;
-      setUser(u); fetchPosts(u); if (u) { fetchProfile(u.id); initPush(u); }
+      userRef.current = u;
+      setUser(u); fetchPosts(u);
+      if (u) { fetchProfile(u.id); initPush(u); fetchNotifications(u); }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user ?? null;
-      setUser(u); fetchPosts(u); if (u) { fetchProfile(u.id); initPush(u); }
+      userRef.current = u;
+      setUser(u); fetchPosts(u);
+      if (u) { fetchProfile(u.id); initPush(u); fetchNotifications(u); }
+      else { setNotifications([]); setUnreadCount(0); }
     });
 
     // Capacitor Hardware Back Button handler
@@ -658,7 +792,7 @@ function App() {
       subscription.unsubscribe();
       backButtonListener.remove();
     };
-  }, [fetchPosts, fetchProfile, showCreate, showProfile, showPolicies, showContact, showSearch, selectedPost, showAuth]);
+  }, [fetchPosts, fetchProfile, fetchNotifications, showCreate, showProfile, showPolicies, showContact, showSearch, selectedPost, showAuth]);
 
   // Bloquear scroll al abrir modales — aplicado en <html> para NO anular scrollbar-gutter:stable del body
   // Si se aplica en body, el JS inline-style gana sobre el CSS y el scrollbar desaparece → temblor
@@ -667,6 +801,47 @@ function App() {
     document.documentElement.style.overflow = isModalOpen ? 'hidden' : '';
     return () => { document.documentElement.style.overflow = ''; };
   }, [showCreate, showProfile, showPolicies, showContact, showSearch, selectedPost, showAuth]);
+
+  // Reset feed al cambiar de categoría (server-side filtering)
+  useEffect(() => {
+    activeCategoryRef.current = activeCategory;
+    if (isFirstCatRender.current) { isFirstCatRender.current = false; return; }
+    fetchPosts(userRef.current, false, activeCategory);
+  }, [activeCategory, fetchPosts]);
+
+  // IntersectionObserver para infinite scroll
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { rootMargin: '300px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
+
+  // Real-time: notificaciones instantáneas via Supabase Realtime
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase.channel(`notif-${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, async (payload) => {
+        const { data: nd } = await supabase.from('notifications').select('*').eq('id', payload.new.id).single();
+        if (!nd) return;
+        let actor = null;
+        if (nd.actor_id) {
+          const { data: pd } = await supabase.from('profiles').select('id, username, avatar_url').eq('id', nd.actor_id).single();
+          actor = pd || null;
+        }
+        setNotifications(prev => [{ ...nd, actor }, ...prev]);
+        setUnreadCount(c => c + 1);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
 
   const isVideoFile = (file) => file.type.startsWith('video/');
@@ -835,6 +1010,30 @@ function App() {
               <button onClick={() => setShowAuth(true)} className="btn-terracotta" style={{ padding: '7px 13px', fontSize: '9px', whiteSpace: 'nowrap' }}>INICIAR</button>
             ) : (
               <>
+                {/* 🔔 Bell de notificaciones */}
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <button
+                    onClick={() => { setShowNotifications(v => !v); if (!showNotifications) markNotificationsRead(); }}
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '50%', position: 'relative' }}>
+                    <Bell size={15} style={{ opacity: 0.65 }} />
+                    {unreadCount > 0 && (
+                      <span style={{ position: 'absolute', top: '-2px', right: '-2px', background: '#ef4444', color: 'white', borderRadius: '50%', width: '14px', height: '14px', fontSize: '8px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  {showNotifications && (
+                    <>
+                      <div onClick={() => setShowNotifications(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
+                      <NotificationsPanel
+                        notifications={notifications}
+                        onClose={() => setShowNotifications(false)}
+                        onOpenPost={openPostById}
+                        onMarkRead={markNotificationsRead}
+                      />
+                    </>
+                  )}
+                </div>
                 <button onClick={() => setShowCreate(true)}
                   style={{ background: 'var(--terracotta)', color: 'white', borderRadius: '50%', width: '30px', height: '30px', border: 'none', cursor: 'pointer', fontSize: '20px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>+
                 </button>
@@ -853,7 +1052,21 @@ function App() {
       <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '96px 16px 60px' }}>
         <div className="bento-grid">
           {loading ? (
-            <div style={{ textAlign: 'center', width: '100%', opacity: 0.38, paddingTop: '60px' }}>Cargando...</div>
+            // ── Skeleton cards mientras carga ──────────────────────────
+            [1, 2, 3, 4].map(i => (
+              <div key={i} className="bento-item" style={{ minHeight: '220px', animation: 'skeletonPulse 1.5s ease-in-out infinite' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(0,0,0,0.08)', flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ height: '10px', borderRadius: '5px', background: 'rgba(0,0,0,0.08)', width: '55%', marginBottom: '7px' }} />
+                    <div style={{ height: '8px', borderRadius: '4px', background: 'rgba(0,0,0,0.05)', width: '30%' }} />
+                  </div>
+                </div>
+                <div style={{ height: '14px', borderRadius: '6px', background: 'rgba(0,0,0,0.07)', width: '75%', marginBottom: '8px' }} />
+                <div style={{ height: '10px', borderRadius: '5px', background: 'rgba(0,0,0,0.05)', width: '90%', marginBottom: '14px' }} />
+                <div style={{ height: '140px', borderRadius: '12px', background: 'rgba(0,0,0,0.06)' }} />
+              </div>
+            ))
           ) : filteredFeed.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '70px 20px' }}>
               <div style={{ fontSize: '44px', marginBottom: '14px' }}>{CATEGORY_INFO[activeCategory]?.emoji}</div>
@@ -873,12 +1086,27 @@ function App() {
                 onOpenPost={() => setSelectedPost(item)}
                 onLike={async (id, liked) => {
                   if (!user) return setShowAuth(true);
+                  // Actualización optimista — sin refetch completo
+                  setFeed(prev => prev.map(p => p.id === id
+                    ? { ...p, likes_count: liked ? p.likes_count - 1 : p.likes_count + 1, user_has_liked: !liked }
+                    : p
+                  ));
                   if (liked) await supabase.from('likes').delete().match({ post_id: id, user_id: user.id });
-                  else await supabase.from('likes').insert({ post_id: id, user_id: user.id });
-                  fetchPosts(user, true);
+                  else       await supabase.from('likes').insert({ post_id: id, user_id: user.id });
                 }}
               />
             ))
+          )}
+          {/* ── Sentinel para infinite scroll ── */}
+          {!loading && (hasMore || loadingMore) && (
+            <div ref={sentinelRef} style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'center', padding: '28px' }}>
+              {loadingMore && (
+                <div style={{ width: '22px', height: '22px', border: '2px solid rgba(0,0,0,0.08)', borderTopColor: 'var(--terracotta)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+              )}
+            </div>
+          )}
+          {!loading && !hasMore && filteredFeed.length > 0 && (
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '18px', fontSize: '11px', opacity: 0.28, fontWeight: '600', letterSpacing: '0.05em' }}>— FIN —</div>
           )}
         </div>
       </main>

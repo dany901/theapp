@@ -38,3 +38,6 @@ android/local.properties
 
 # Capacitor
 ios/
+
+.vercel
+.env*.local
